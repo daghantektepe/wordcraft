@@ -348,13 +348,36 @@ impl NumFormat {
             | NumFormat::HindiConsonants
             | NumFormat::HindiNumbers
             | NumFormat::HindiCounting
-            | NumFormat::ThaiLetters
-            | NumFormat::ThaiNumbers
-            | NumFormat::ThaiCounting
             | NumFormat::BahtText
             | NumFormat::DollarText => n.to_string(),
+            NumFormat::ThaiLetters => thai_letters(n),
+            NumFormat::ThaiNumbers | NumFormat::ThaiCounting => thai_digits(n),
         }
     }
+}
+
+const THAI_LETTERS: [char; 44] = [
+    'ก', 'ข', 'ฃ', 'ค', 'ฅ', 'ฆ', 'ง', 'จ', 'ฉ', 'ช', 'ซ', 'ฌ', 'ญ', 'ฎ', 'ฏ', 'ฐ',
+    'ฑ', 'ฒ', 'ณ', 'ด', 'ต', 'ถ', 'ท', 'ธ', 'น', 'บ', 'ป', 'ผ', 'ฝ', 'พ', 'ฟ', 'ภ',
+    'ม', 'ย', 'ร', 'ล', 'ว', 'ศ', 'ษ', 'ส', 'ห', 'ฬ', 'อ', 'ฮ',
+];
+
+pub fn thai_letters(n: u32) -> String {
+    if n == 0 {
+        return String::new();
+    }
+    let len = THAI_LETTERS.len() as u32;
+    let n = n.min(len * 30);
+    let k = (n - 1) / len + 1;
+    let c = THAI_LETTERS.get(((n - 1) % len) as usize).copied().unwrap_or('ก');
+    std::iter::repeat_n(c, k as usize).collect()
+}
+
+pub fn thai_digits(n: u32) -> String {
+    n.to_string().chars().map(|c| match c {
+        '0'..='9' => char::from_u32(0x0E50 + (c as u32 - '0' as u32)).unwrap_or(c),
+        _ => c,
+    }).collect()
 }
 
 /// Chicago Manual of Style note marks: *, †, ‡, §, then doubled (**, ††, …) and so on.
@@ -970,6 +993,17 @@ impl SectionProps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn thai_numerals_and_letters() {
+        assert_eq!(NumFormat::ThaiNumbers.format(1), "๑");
+        assert_eq!(NumFormat::ThaiNumbers.format(10), "๑๐");
+        assert_eq!(NumFormat::ThaiNumbers.format(2026), "๒๐๒๖");
+        assert_eq!(NumFormat::ThaiLetters.format(1), "ก");
+        assert_eq!(NumFormat::ThaiLetters.format(2), "ข");
+        assert_eq!(NumFormat::ThaiLetters.format(44), "ฮ");
+        assert_eq!(NumFormat::ThaiLetters.format(45), "กก");
+    }
 
     #[test]
     fn number_formats() {

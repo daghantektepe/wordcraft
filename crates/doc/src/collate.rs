@@ -377,9 +377,12 @@ fn next_elem<'a>(rest: &'a str, rules: &[Tailor]) -> Option<(Elem<'a>, usize)> {
     if let Some((_, base, mark)) = DECOMP.iter().find(|(x, _, _)| *x == c) {
         return Some((Elem { primary: base.chars().map(|b| weight(b, 0)).collect(), sec: *mark, text, own: false }, n));
     }
-    // A combining mark adds a secondary difference to the letter before it.
+    // A combining mark or Thai tone mark / diacritic adds a secondary difference to the letter before it.
     if ('\u{300}'..='\u{36f}').contains(&c) {
         return Some((Elem { primary: Vec::new(), sec: 32 + (c as u32 - 0x300) as u16, text, own: false }, n));
+    }
+    if ('\u{0e47}'..='\u{0e4e}').contains(&c) {
+        return Some((Elem { primary: Vec::new(), sec: 64 + (c as u32 - 0x0e47) as u16, text, own: false }, n));
     }
     Some((Elem { primary: vec![weight(c, 0)], sec: 0, text, own: false }, n))
 }
@@ -395,8 +398,31 @@ pub struct SortKey {
 
 /// The sort key of `s` for language `lang` (a BCP 47 tag such as `pl-PL`; `None` sorts like
 /// English).
+fn is_thai_leading_vowel(c: char) -> bool {
+    matches!(c, '\u{0E40}'..='\u{0E44}')
+}
+
+fn is_thai_consonant(c: char) -> bool {
+    matches!(c, '\u{0E01}'..='\u{0E2E}')
+}
+
+fn reorder_thai_visual_vowels(s: &str) -> String {
+    let mut chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i + 1 < chars.len() {
+        if is_thai_leading_vowel(chars[i]) && is_thai_consonant(chars[i + 1]) {
+            chars.swap(i, i + 1);
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    chars.into_iter().collect()
+}
+
 pub fn sort_key(s: &str, lang: Option<&str>) -> SortKey {
-    let text = lower_composed(s);
+    let reordered = reorder_thai_visual_vowels(s);
+    let text = lower_composed(&reordered);
     let rules = tailoring(lang);
     let mut key = SortKey::default();
     let mut i = 0;
@@ -512,6 +538,13 @@ mod tests {
         assert_eq!(sorted(&["csak", "cukor", "dob", "szó", "sűrű", "tál"], "hu-HU"), ["cukor", "csak", "dob", "sűrű", "szó", "tál"]);
         // ö and ő are one letter after o, told apart by the accent only.
         assert_eq!(sorted(&["ötös", "őr", "pálya", "olló", "ör"], "hu"), ["olló", "ör", "őr", "ötös", "pálya"]);
+    }
+
+    #[test]
+    fn thai_dictionary_order_and_tone_marks() {
+        assert_eq!(collate("เก", "ข", Some("th")), Ordering::Less);
+        assert_eq!(collate("ก", "เก", Some("th")), Ordering::Less);
+        assert_eq!(sorted(&["ป้า", "ปา", "ป่า"], "th"), ["ปา", "ป่า", "ป้า"]);
     }
 
     #[test]

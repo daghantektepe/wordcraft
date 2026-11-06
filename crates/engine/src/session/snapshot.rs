@@ -32,6 +32,7 @@ impl Session {
         self.go_back_step = 0;
         self.view.outline.collapsed.clear();
         self.view.read_page_color = self.prefs.read_page_color;
+        self.view.proofing = self.prefs.check_spelling;
         // A copy the replaced document kept stays in the recovery list.
         #[cfg(not(target_arch = "wasm32"))]
         {

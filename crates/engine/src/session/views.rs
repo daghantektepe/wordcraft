@@ -136,6 +136,7 @@ impl Session {
         self.sel = sel;
         self.view = view;
         self.view.read_page_color = self.prefs.read_page_color;
+        self.view.proofing = self.prefs.check_spelling;
         self.pending = pending;
         self.goal_x = goal_x;
         self.page_hint = page_hint;

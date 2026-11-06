@@ -1390,6 +1390,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
     let CanvasView { area, hruler, vruler, paper, geo, dim_body, grid_story, caret, .. } = view;
     let mut origin = area.min;
     let mut ui_area = ui.new_child(egui::UiBuilder::new().max_rect(area));
+    ui_area.spacing_mut().scroll = egui::style::ScrollStyle::solid();
     let mut ime_geometry: Option<(Rect, Rect)> = None;
     let mut ime_interrupt = false;
     let out = scroll_area.show_viewport(&mut ui_area, |ui, viewport| {

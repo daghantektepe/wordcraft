@@ -73,8 +73,10 @@ impl WordApp {
         self.session.view.dark_mode = self.ui.dark_page;
         self.session.view.nav_pane = self.ui.nav_pane;
         self.session.view.styles_pane_dock = self.ui.styles_pane_dock;
-        self.session.view.proofing = self.ui.check_spelling;
-        self.session.prefs.check_spelling = self.ui.check_spelling;
+        let check_spelling = self.ui.check_spelling && self.session.prefs.check_spelling;
+        self.ui.check_spelling = check_spelling;
+        self.session.view.proofing = check_spelling;
+        self.session.prefs.check_spelling = check_spelling;
         // Keys for commands this version doesn't have are dropped.
         self.session.keymap = std::mem::take(&mut self.ui.keyboard);
         let reg = self.session.registry.clone();

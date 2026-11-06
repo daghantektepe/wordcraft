@@ -14,6 +14,9 @@ pub(super) fn sort_table(s: &mut Session, v: &Value) -> CmdResult {
     let (tp, _, _) = cell(s)?;
     let t = s.doc.table(s.sel.focus.story, &tp).ok_or_else(|| CmdError::Failed("no table".into()))?;
     let skip = usize::from(header.unwrap_or(t.rows.first().is_some_and(|r| r.props.header))).min(t.rows.len());
+    if t.rows.iter().skip(skip).flat_map(|r| &r.cells).any(|c| c.props.vmerge != wordcraft_doc::props::VMerge::None) {
+        return Err(CmdError::Failed("cannot sort a table with vertically merged cells".into()));
+    }
     let column = || t.rows.iter().skip(skip).map(|r| r.cells.get(col));
     let lang = column().flatten().find_map(|c| cell_lang(&s.doc, c)).or_else(|| crate::cmd::default_lang(s));
     // A total order (numbers, then text), so sorting never sees inconsistent comparisons.

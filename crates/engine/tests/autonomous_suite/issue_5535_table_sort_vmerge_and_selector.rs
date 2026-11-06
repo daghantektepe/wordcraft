@@ -1,28 +1,39 @@
 use serde_json::json;
 use wordcraft_engine::Session;
-use wordcraft_engine::doc::{Document, StoryRef};
+use wordcraft_engine::doc::{Document, props::VMerge};
 
 #[test]
-fn issue_5535_table_sort_vmerge_and_selector_session_commands_and_equation_safety() {
+fn issue_5535_table_sort_fails_gracefully_on_vertically_merged_cells() {
     let mut s = Session::new(Document::new());
-    s.run("text.insert", &json!({ "text": "WordCraft issue_5535_table_sort_vmerge_and_selector " })).unwrap();
-    let _ = s.run("equation.insert", &json!({}));
-    let _ = s.run("equation.type", &json!({ "text": "x+1" }));
-    let _ = s.run("equation.insertBuiltUp", &json!({ "text": "\\alpha" }));
-    let _ = s.run("equation.deleteSurrounding", &json!({ "before": 1, "after": 0 }));
-
-    let body_txt = s.doc.plain_text(StoryRef::Body);
-    assert!(body_txt.contains("WordCraft issue_5535_table_sort_vmerge_and_selector"));
+    s.run("insert.table", &json!({ "rows": 3, "cols": 1 })).unwrap();
+    
+    // Find the inserted table's path
+    let (tp, _, _) = s.sel.focus.path.cell().expect("selection must be in table cell");
+    if let Ok(t) = s.doc.table_mut(s.sel.focus.story, &tp) {
+        if t.rows.len() >= 3 && !t.rows[1].cells.is_empty() && !t.rows[2].cells.is_empty() {
+            t.rows[1].cells[0].props.vmerge = VMerge::Restart;
+            t.rows[2].cells[0].props.vmerge = VMerge::Continue;
+        }
+    }
+    
+    // table.sort must refuse to sort rows with vertically merged cells
+    let res = s.run("table.sort", &json!({ "column": 0, "descending": false }));
+    assert!(res.is_err(), "table.sort must fail when table contains vertically merged cells");
+    let err_msg = format!("{:?}", res.unwrap_err());
+    assert!(
+        err_msg.contains("cannot sort a table with vertically merged cells"),
+        "error message should explain vertical merge restriction, got: {err_msg}"
+    );
 }
 
 #[test]
-fn issue_5535_table_sort_vmerge_and_selector_undo_redo_and_formatting_operations() {
+fn issue_5740_spell_checker_state_preserved_across_documents() {
     let mut s = Session::new(Document::new());
-    s.run("text.insert", &json!({ "text": "Before formatting" })).unwrap();
-    s.run("select.text", &json!({ "text": "Before" })).unwrap();
-    s.run("format.bold", &json!({})).unwrap();
-    s.run("edit.undo", &json!({})).unwrap();
-    assert!(s.can_redo());
-    s.run("edit.redo", &json!({})).unwrap();
-    assert!(s.doc.plain_text(StoryRef::Body).contains("Before formatting"));
+    // Disable spell checking in prefs
+    s.prefs.check_spelling = false;
+    s.view.proofing = false;
+
+    // Switch/new document
+    let _ = s.run("file.new", &json!({}));
+    assert!(!s.view.proofing, "new document view.proofing must honor prefs.check_spelling = false");
 }

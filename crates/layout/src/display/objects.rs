@@ -10,6 +10,15 @@ pub(super) fn graphic_draws(doc: &Document, g: &Graphic, rect: Rect, alpha: f32)
     let (sx, sy) = (scale_of(rect.w, g.w), scale_of(rect.h, g.h));
     let k = (sx + sy) / 2.0;
     let inside = |r: &[f32; 4]| Rect::new(rect.x + r[0] * sx, rect.y + r[1] * sy, r[2] * sx, r[3] * sy);
+
+    // Collect every character that appears in any Text item of this graphic.
+    let mut all_text_chars = Vec::new();
+    for it in &g.items {
+        if let GraphicItem::Text { text, .. } = it {
+            all_text_chars.extend(text.chars());
+        }
+    }
+
     let mut out = Vec::with_capacity(g.items.len());
     for it in &g.items {
         match it {
@@ -35,7 +44,9 @@ pub(super) fn graphic_draws(doc: &Document, g: &Graphic, rect: Rect, alpha: f32)
                     cap: Default::default(),
                 })
             }
-            GraphicItem::Text { rect: r, .. } => out.extend(text_glyphs(doc, inside(r), it, alpha, k)),
+            GraphicItem::Text { rect: r, .. } => {
+                out.extend(text_glyphs(doc, inside(r), it, alpha, k, &all_text_chars));
+            }
             GraphicItem::Image { rect: r, media } => out.push(Draw::Image {
                 rect: inside(r),
                 media: media.clone(),
@@ -279,7 +290,7 @@ pub fn seg_path(segs: &[PathSeg]) -> BezPath {
 /// in body text: one draw per run of a face, in reading order. Empty when there is nothing to draw,
 /// or the item's rectangle or size isn't a finite number (a degenerate scale: `r` itself is always
 /// finite, as [`Rect::new`] makes it).
-fn text_glyphs(doc: &Document, r: Rect, it: &GraphicItem, alpha: f32, k: f32) -> Vec<Draw> {
+fn text_glyphs(doc: &Document, r: Rect, it: &GraphicItem, alpha: f32, k: f32, all_text_chars: &[char]) -> Vec<Draw> {
     let GraphicItem::Text { rect, text, size, color, bold, align, font } = it else { return Vec::new() };
     let size = *size * k;
     if !rect.iter().chain([&size]).all(|v| v.is_finite()) {
@@ -290,7 +301,7 @@ fn text_glyphs(doc: &Document, r: Rect, it: &GraphicItem, alpha: f32, k: f32) ->
     let resolved = wordcraft_fonts::word::resolve(family, *bold, false);
     let primary = resolved.face;
     let scale = |f: FaceRef| size / f.upem.max(1.0) as f32;
-    let runs: Vec<_> = face_runs(text, primary, *bold)
+    let runs: Vec<_> = face_runs(text, primary, *bold, all_text_chars)
         .into_iter()
         .map(|(face, s)| (face, s, wordcraft_fonts::shape(face.get(), s, &[], |c| c)))
         .filter(|(_, _, shaped)| !shaped.is_empty())
@@ -336,7 +347,7 @@ fn text_glyphs(doc: &Document, r: Rect, it: &GraphicItem, alpha: f32, k: f32) ->
 /// fallback face. A run the primary lacks takes one face covering all of it when one does (so a
 /// Chinese label doesn't mix serif and sans glyphs), else each character its own fallback. Spaces
 /// and combining marks stay in the run before them; a character no face has stays in `primary`.
-fn face_runs(text: &str, primary: FaceRef, bold: bool) -> Vec<(FaceRef, &str)> {
+fn face_runs<'a>(text: &'a str, primary: FaceRef, bold: bool, all_text_chars: &[char]) -> Vec<(FaceRef, &'a str)> {
     let joins = |c: char| c.is_whitespace() || wordcraft_doc::math_linear::is_combining(c);
     // (start, end, drawn by `primary`)
     let mut spans: Vec<(usize, usize, bool)> = Vec::new();
@@ -349,6 +360,8 @@ fn face_runs(text: &str, primary: FaceRef, bold: bool) -> Vec<(FaceRef, &str)> {
         }
     }
     let db = wordcraft_fonts::FontDb::global();
+    let graphic_uncovered: Vec<char> = all_text_chars.iter().copied().filter(|c| !joins(*c) && !primary.covers(*c)).collect();
+    let graphic_fallback = (!graphic_uncovered.is_empty()).then(|| db.fallback_for_run(&graphic_uncovered, primary.id(), bold, false)).flatten();
     let mut out: Vec<(FaceRef, &str)> = Vec::with_capacity(spans.len());
     for (start, end, own) in spans {
         let Some(s) = text.get(start..end) else { continue };
@@ -357,6 +370,10 @@ fn face_runs(text: &str, primary: FaceRef, bold: bool) -> Vec<(FaceRef, &str)> {
             continue;
         }
         let chars: Vec<char> = s.chars().filter(|c| !joins(*c)).collect();
+        if let Some(f) = graphic_fallback.as_ref() {
+            out.push((FaceRef::of(f), s));
+            continue;
+        }
         if let Some(f) = db.fallback_for_run(&chars, primary.id(), bold, false) {
             out.push((FaceRef::of(&f), s));
             continue;

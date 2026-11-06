@@ -387,6 +387,7 @@ impl Session {
         let mut d = self.others.swap_remove(at);
         self.swap_doc(&mut d);
         self.view.read_page_color = self.prefs.read_page_color;
+        self.view.proofing = self.prefs.check_spelling;
         self.others.push(d);
         Ok(())
     }
@@ -462,6 +463,7 @@ impl Session {
         let mut view = self.view.clone();
         view.outline.collapsed.clear();
         view.read_page_color = self.prefs.read_page_color;
+        view.proofing = self.prefs.check_spelling;
         let mut d = DocState::new(doc, untitled, view);
         let id = d.document_id;
         self.order.push(id);
