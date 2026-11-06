@@ -138,6 +138,31 @@ pub fn specs() -> Vec<CommandSpec> {
         })
         .pure(),
         CommandSpec::new("review.thesaurus", "Thesaurus", "Review › Proofing", thesaurus).key("Shift+F7").pure(),
+        CommandSpec::new("review.translate", "Translate", "Review › Language", |s, v| {
+            let source = p::str(v, "text").map(str::to_string).unwrap_or_else(|| {
+                if !s.sel.is_collapsed() {
+                    s.selected_text()
+                } else {
+                    s.doc.para_at(&s.sel.focus).map(|p| p.text.clone()).unwrap_or_default()
+                }
+            });
+            let to = p::str(v, "to").unwrap_or("en").to_string();
+            let from = s.typing_props().lang.unwrap_or_else(|| "en-US".into());
+            if p::bool(v, "replace").unwrap_or(false)
+                && let Some(translated) = p::str(v, "translation")
+            {
+                super::type_text(s, translated)?;
+            }
+            Ok(json!({"sourceText": source, "from": from, "to": to}))
+        })
+        .params(r#"{"text"?: string, "to"?: lang, "translation"?: string, "replace"?: bool}"#)
+        .pure(),
+        CommandSpec::new("review.blockAuthors", "Block Authors", "Review › Protect", |s, v| {
+            let blocked = p::bool(v, "value").unwrap_or(false);
+            Ok(json!({"blocked": blocked, "author": s.author}))
+        })
+        .params(r#"{"value"?: bool}"#)
+        .pure(),
     ]
 }
 

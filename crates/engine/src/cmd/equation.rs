@@ -28,6 +28,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("insert.equation", "Equation", "Insert › Symbols", insert)
             .key("Alt+=")
             .params(r#"{"linear"?: string, "latex"?: string, "builtin"?: "pythagoras|area|quadratic|binomial|expansion|euler|derivative|taylor|gaussian|fourier|trig1|trig2|normal|bayes", "display"?: bool, "edit"?: bool (default true)}"#),
+        CommandSpec::new("insert.inkEquation", "Ink Equation", "Insert › Symbols", insert)
+            .params(r#"{"linear"?: string, "latex"?: string, "display"?: bool, "edit"?: bool (default true)}"#),
         CommandSpec::new("equation.edit", "Edit Equation", "Equation", edit)
             .pure()
             .when(near_equation)

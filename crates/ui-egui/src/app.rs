@@ -361,7 +361,11 @@ impl WordApp {
             ctx.request_repaint_of(viewport);
             ctx.request_repaint();
         }
-        // The open above may have changed the file name the caption draws.
+        // The open above may have changed the file name the caption draws, or a command may have
+        // changed the interface language.
+        let lang = i18n::Lang::from_pref(&self.ui.language);
+        i18n::set_current(lang);
+        crate::rtl::sync(ctx);
         self.ensure_caption_fonts();
         self.ensure_comment_fonts();
         self.ensure_recover_fonts();

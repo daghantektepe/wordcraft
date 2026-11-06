@@ -183,6 +183,7 @@ impl WordApp {
                 system_arabic,
                 &faces,
             );
+            let interface_script_added = (lang.uses_cjk() && !self.fonts_system_cjk) || (lang.rtl() && !self.fonts_system_arabic);
             self.fonts_hans = lang.prefers_hans();
             self.fonts_korean = lang.prefers_korean();
             self.fonts_hant = lang.prefers_hant();
@@ -199,6 +200,11 @@ impl WordApp {
                 o.zoom_with_keyboard = false;
                 o.quit_shortcuts = quit;
             });
+            if self.styled && self.fonts_frames >= 2 && interface_script_added {
+                // `ctx.set_fonts` applies on the next frame; warm up one frame before drawing
+                // the newly selected script's interface strings.
+                self.fonts_frames = 1;
+            }
             self.styled = true;
         }
     }

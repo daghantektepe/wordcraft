@@ -254,6 +254,13 @@ pub fn specs() -> Vec<CommandSpec> {
         .params(r#"{"value"?: bool}  (no value: convert the lasso-selected strokes, or turn Ink to Shape on or off)"#)
         .pure(),
         CommandSpec::new("draw.convertInk", "Convert to Shapes", "Draw › Convert", convert_selection),
+        CommandSpec::new("draw.inkToMath", "Ink to Math", "Draw › Convert", |s, v| {
+            if lasso_selection(s).is_some() {
+                let _ = s.run("draw.lassoDelete", &json!({}));
+            }
+            s.run("insert.inkEquation", v)
+        })
+        .params(r#"{"linear"?: string, "latex"?: string, "display"?: bool}"#),
         CommandSpec::new("draw.replay", "Ink Replay", "Draw › Replay", replay)
             .params(r#"{"value"?: bool}  (starts or stops Ink Replay; returns the strokes in the order they were drawn)"#)
             .pure(),

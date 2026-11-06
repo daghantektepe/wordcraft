@@ -40,6 +40,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.readPageColor", "Reading Page Color", "Reading › Layout", read_page_color)
             .params(r#"{"value": "none" | "sepia" | "inverse"}"#)
             .pure(),
+        CommandSpec::new("view.readLayout", "Reading Layout", "Read Mode › View", read_layout)
+            .params(r#"{"value"?: "column" | "paper"}"#)
+            .pure(),
         // Print Layout: hide the white space (margins, headers, footers) between pages. Screen only.
         CommandSpec::new("view.hideWhiteSpace", "Hide White Space", "View › Show", |s, v| toggle(s, v, |x| &mut x.hide_white_space))
             .params(r#"{"value"?: bool}"#)
@@ -132,6 +135,25 @@ pub fn specs() -> Vec<CommandSpec> {
             sel_result(s)
         })
         .pure(),
+        CommandSpec::new("view.arrangeAll", "Arrange All", "View › Window", |s, _| {
+            s.push_ui_request(json!({"arrange": "all"}));
+            Ok(json!({"arranged": s.documents().len()}))
+        })
+        .pure(),
+        CommandSpec::new("view.sideBySide", "View Side by Side", "View › Window", |s, v| {
+            let on = p::bool(v, "value").unwrap_or(true);
+            s.push_ui_request(json!({"sideBySide": on}));
+            Ok(json!({"sideBySide": on}))
+        })
+        .params(r#"{"value"?: bool}"#)
+        .pure(),
+        CommandSpec::new("view.syncScroll", "Synchronous Scrolling", "View › Window", |s, v| {
+            let on = p::bool(v, "value").unwrap_or(true);
+            s.push_ui_request(json!({"syncScroll": on}));
+            Ok(json!({"syncScroll": on}))
+        })
+        .params(r#"{"value"?: bool}"#)
+        .pure(),
         CommandSpec::new("view.switchWindows", "Switch Windows", "View › Window", switch_windows)
             .params(r#"{"id"?: n (make this open document the active one)} → {"documents": [{"id", "title", "path", "dirty", "active"}]} in the order they were opened"#)
             .pure(),
@@ -210,6 +232,24 @@ fn read_column_width(s: &mut Session, v: &Value) -> CmdResult {
     };
     s.view.read_column_width = width;
     Ok(json!({"width": width}))
+}
+
+fn read_layout(s: &mut Session, v: &Value) -> CmdResult {
+    match v.get("value").and_then(Value::as_str) {
+        None => {
+            let layout = if s.view.read_column_width == Some(612.0) { "paper" } else { "column" };
+            Ok(json!({"layout": layout}))
+        }
+        Some("paper" | "page") => {
+            s.view.read_column_width = Some(612.0);
+            Ok(json!({"layout": "paper", "width": 612.0}))
+        }
+        Some("column") => {
+            s.view.read_column_width = None;
+            Ok(json!({"layout": "column", "width": Value::Null}))
+        }
+        Some(_) => Err(CmdError::Params("reading layout must be column or paper".into())),
+    }
 }
 
 fn read_text_size(s: &mut Session, v: &Value) -> CmdResult {

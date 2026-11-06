@@ -392,5 +392,16 @@ pub fn specs() -> Vec<CommandSpec> {
             Ok(json!({"pageMovement": "sideToSide"}))
         })
         .pure(),
+        CommandSpec::new("tools.dictate", "Dictate", "Home › Voice", |s, v| {
+            if let Some(text) = p::str(v, "text") {
+                if !text.is_empty() {
+                    crate::cmd::type_text(s, text)?;
+                }
+                return Ok(json!({"dictating": true, "inserted": text.chars().count()}));
+            }
+            let on = p::bool(v, "value").unwrap_or(true);
+            Ok(json!({"dictating": on}))
+        })
+        .params(r#"{"text"?: string, "value"?: bool}"#),
     ]
 }

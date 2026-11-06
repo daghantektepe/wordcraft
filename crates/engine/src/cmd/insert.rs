@@ -40,6 +40,72 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("insert.coverPage", "Cover Page", "Insert › Pages", cover_page).params(r#"{"title"?: string, "subtitle"?: string, "author"?: string}"#),
         CommandSpec::new("insert.table", "Table", "Insert › Tables", table).params(r#"{"rows": n, "cols": n, "style"?: string}"#),
         CommandSpec::new("insert.picture", "Pictures", "Insert › Illustrations", picture).params(r#"{"path"?: string, "data"?: base64, "width"?: pt, "alt"?: string}"#),
+        CommandSpec::new("insert.onlinePicture", "Online Pictures", "Insert › Illustrations", |s, v| {
+            if v.get("path").is_some() || v.get("data").is_some() {
+                return picture(s, v);
+            }
+            if let Some(url) = p::str(v, "url") {
+                let local = url.strip_prefix("file://").unwrap_or(url);
+                if std::path::Path::new(local).exists() {
+                    return picture(s, &json!({"path": local, "width": v.get("width"), "alt": v.get("alt")}));
+                }
+            }
+            s.push_ui_request(json!({"open": "picture"}));
+            sel_result(s)
+        })
+        .params(r#"{"path"?: string, "data"?: base64, "url"?: string, "width"?: pt, "alt"?: string}"#),
+        CommandSpec::new("insert.screenshot", "Screenshot", "Insert › Illustrations", |s, v| {
+            if v.get("path").is_some() || v.get("data").is_some() {
+                return picture(s, v);
+            }
+            let layout = s.layout();
+            if let Some(pg) = layout.pages.first() {
+                let png = wordcraft_render::render_page(&s.doc, pg, 1.0, &wordcraft_render::RenderOptions::default()).to_png();
+                let b64 = base64_encode(&png);
+                let width = p::f32(v, "width").unwrap_or(240.0);
+                let alt = p::str(v, "alt").unwrap_or("Screenshot");
+                return picture(s, &json!({"data": b64, "width": width, "alt": alt}));
+            }
+            sel_result(s)
+        })
+        .params(r#"{"path"?: string, "data"?: base64, "width"?: pt, "alt"?: string}"#),
+        CommandSpec::new("insert.model3d", "3D Models", "Insert › Illustrations", |s, v| {
+            if v.get("path").is_some() || v.get("data").is_some() {
+                return picture(s, v);
+            }
+            let width = p::f32(v, "width").unwrap_or(144.0);
+            let height = p::f32(v, "height").unwrap_or(144.0);
+            let alt = p::str(v, "alt").or_else(|| p::str(v, "name")).unwrap_or("3D Model");
+            shape(
+                s,
+                &json!({
+                    "kind": "roundedRectangle",
+                    "width": width,
+                    "height": height,
+                    "fill": p::str(v, "fill").unwrap_or("4472C4"),
+                    "stroke": p::str(v, "stroke").unwrap_or("2F528F"),
+                    "alt": alt
+                }),
+            )
+        })
+        .params(r#"{"path"?: string, "data"?: base64, "name"?: string, "width"?: pt, "height"?: pt, "alt"?: string}"#),
+        CommandSpec::new("addins.get", "Get Add-ins", "Insert › Add-ins", |_, v| {
+            let q = p::str(v, "query").unwrap_or("").trim().to_ascii_lowercase();
+            let all = [json!({"id": "zotero", "name": "Zotero", "category": "References", "installed": true})];
+            let matches: Vec<Value> = all
+                .into_iter()
+                .filter(|a| q.is_empty() || a["name"].as_str().unwrap_or("").to_ascii_lowercase().contains(&q))
+                .collect();
+            Ok(json!({"addins": matches}))
+        })
+        .params(r#"{"query"?: string} → {"addins": [{"id", "name", "category", "installed"}]}"#)
+        .pure(),
+        CommandSpec::new("insert.video", "Online Video", "Insert › Media", |s, v| {
+            let url = p::str(v, "url").unwrap_or("https://example.com/video").to_string();
+            let title = p::str(v, "title").unwrap_or(&url).to_string();
+            link(s, &json!({"url": url, "text": format!("[Video: {title}]")}))
+        })
+        .params(r#"{"url"?: string, "title"?: string}"#),
         CommandSpec::new("insert.icon", "Icons", "Insert › Illustrations", icon)
             .params(r#"{"id"?: string (omit to list the library), "color"?: "RRGGBB", "size"?: pt, "query"?: string, "category"?: string}"#),
         CommandSpec::new("insert.shape", "Shapes", "Insert › Illustrations", shape)
